@@ -14,6 +14,7 @@ import subprocess as sh
 
 class FanParser:
 
+    @staticmethod
     def parse():
         cmd = "find /sys -name 'fan*'"
         # "cwm --rdf test.rdf --ntriples > test.nt"
@@ -29,14 +30,17 @@ class FanParser:
             if 'max' in candy: targets['max'] = candy
             if 'min' in candy: targets['min'] = candy
 
-        print(targets)
+        return targets
 
 class FanHelper:
 
-    def __init__(self, name, path):
+    def __init__(self, meta):
         pass
 
     def get_current_speed(self):
+        pass
+
+    def get_target_speed(self):
         pass
 
     def get_speed_bounds(self):
