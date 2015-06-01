@@ -80,6 +80,7 @@ class DataHandler:
 
     def set_target_speed(self, speed):
         self.target_speed = speed
+        self.current_speed = speed
 
     def get_min_speed(self):
         return self.speed_min

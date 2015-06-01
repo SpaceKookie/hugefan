@@ -25,7 +25,7 @@ from helpers import DataHandler, FanParser
 # Some nice constants
 __APPNAME__ = 'HugeFan'
 __VERSION__ = '0.2'
-__DT__ = 0.25
+__DT__ = 0.5
 
 __VERBOSE__ = False
 
@@ -35,18 +35,25 @@ dt = None
 gt = None
 TERMINATOR = False
 
+
 class DataUpdateThread(QtCore.QThread):
-    def __init__(self, parent):
-        self.parent = parent
-        self.running = True
+    def __init__(self, parent, data):
+        QtCore.QThread.__init__(self)
 
-    def make_it_so(self):
-        while self.running:
-            self.parent.update()
+        self.parent_ui = parent
+        self.data = data
 
-    def terminate(self):
-        self.running = False
+    def run(self):
+        while True:
+            global TERMINATOR
+            if TERMINATOR:
+                break
 
+            # Send a request to the main GUI thread.
+            self.emit(QtCore.SIGNAL('update_ui_elements()'))
+
+            # Then sleep the thread.
+            time.sleep(__DT__)
 
 class HugeFan(QtGui.QMainWindow):
     def __init__(self):
@@ -63,49 +70,51 @@ class HugeFan(QtGui.QMainWindow):
         self.ui.speed_slider.setRange(min_fan, max_fan)
         self.ui.speed_slider.setToolTip("Current target: %d" % self.data.get_target_speed())
 
-        # self.setFixedSize(315, 500)
-        self.show()
-
         # Now actually go and bind functions to it.
         self.bind_ui()
 
+        # self.setFixedSize(315, 500)
+        self.show()
+
         # Initiate the background data update thread
-        self.thread = DataUpdateThread(self)
-        self.thread.make_it_so()
+        self.thread = DataUpdateThread(self.ui, self.data)
+        self.connect(self.thread, QtCore.SIGNAL('update_ui_elements()'), self.notify_update)
+
+        self.thread.start()
 
     @QtCore.pyqtSlot(int)
     def adjust_speed(self, value):
         self.data.set_target_speed(value)
 
-    # @QtCore.pyqtSlot()
-    # def change_state(self):
-    #     if self.data.get_manual_state():
-    #         self.ui.speed_slider.setEnabled(False)
-    #         self.ui.temp_slider.setEnabled(False)
-    #         self.data.set_manual_control(False)
-    #     else:
-    #         self.ui.speed_slider.setEnabled(True)
-    #         self.ui.temp_slider.setEnabled(True)
-    #         self.data.set_manual_control(True)
+    @QtCore.pyqtSlot(int)
+    def adjust_temperature(self, value):
+        self.data.set_target_temp(value)
+
+    def notify_update(self):
+        # Update the labels
+        self.ui.content_cur_speed.setText("<b>%s</b>" % self.data.get_current_speed())
+        self.ui.content_cur_temp.setText("<b>%s</b>" % self.data.get_current_temperature())
+
+        # Update the sliders (again)
+        self.ui.speed_slider.setValue(self.data.get_target_speed())
+        self.ui.temp_slider.setValue(self.data.get_target_temperature())
+
+    @QtCore.pyqtSlot()
+    def change_state(self):
+        if self.data.get_manual_state():
+            self.ui.speed_slider.setEnabled(False)
+            self.ui.temp_slider.setEnabled(False)
+            self.data.set_manual_control(False)
+        else:
+            self.ui.speed_slider.setEnabled(True)
+            self.ui.temp_slider.setEnabled(True)
+            self.data.set_manual_control(True)
 
     def bind_ui(self):
         # self.connect(self.ui.enable_box, QtCore.SIGNAL('triggered()'), self, QtCore.SLOT('change_state()'))
         self.connect(self.ui.speed_slider, QtCore.SIGNAL('valueChanged(int)'), self, QtCore.SLOT('adjust_speed(int)'))
 
-    def update(self):
-        print("Yes")
-
-        # Updating info labels
-        # self.ui.content_cur_speed.setText("<b>%s</b>" % self.data.get_current_speed())
-        # self.ui.content_cur_temp.setText("<b>%s</b>" % self.data.get_current_temperature())
-
-        # Updating slider positions
-        # self.ui.speed_slider.setValue(self.data.get_target_speed())
-
-        # TODO: Update graphs
-
 def main_gui(args):
-
     # Init the PyQt core
     core = QtGui.QApplication(args)
 
@@ -127,7 +136,6 @@ def main_gui(args):
     sys.exit(status)
 
 
-
 def data_thread(delta):
     counter = 0
     while huge_fan is None:
@@ -147,14 +155,13 @@ def data_thread(delta):
 
 
 if __name__ == '__main__':
-
     # This looks up the fan targets and initialises the DataHandler
     tmp = FanParser.parse()
     DataHandler(tmp)
 
     # Setup threading
     # dt = Thread(target=data_thread, args=(__DT__, ))
-    gt = Thread(target=main_gui, args=(sys.argv, ))
+    gt = Thread(target=main_gui, args=(sys.argv,))
 
     # Now start the threads
     # dt.start()
@@ -163,4 +170,3 @@ if __name__ == '__main__':
     # Join threads
     # dt.join()
     gt.join()
-
